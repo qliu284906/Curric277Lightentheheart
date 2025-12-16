@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 interface SemesterJourneyProps {
@@ -57,7 +56,7 @@ const LEVELS_CONFIG = [
 const ICONS = [PixelIconBasics, PixelIconPen, PixelIconFlow, PixelIconMask];
 const HEART_POS = { x: 1000, z: -18500 };
 
-// Intro Text Content - UPDATED to match course keywords + Review statement
+// Intro Text Content
 const INTRO_TEXT = "From Representation and Agency to Flow and Identity... We explored Gee's Principles, Empathy, and Cognition to understand the true power of play. Let's revisit the path we walked together.";
 
 export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) => {
@@ -69,7 +68,6 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
   const [cameraZ, setCameraZ] = useState(0);
   const [cameraX, setCameraX] = useState(0);
   const [isTravelling, setIsTravelling] = useState(false);
-  const [collected, setCollected] = useState<number[]>([]);
   
   // Typewriter State
   const [typedText, setTypedText] = useState('');
@@ -116,7 +114,7 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
     if (levelIndex !== currentLevelIdx || isTravelling) return;
 
     setIsTravelling(true);
-    setCollected(prev => [...prev, LEVELS_CONFIG[currentLevelIdx].id]);
+    // Removed unused setCollected call
 
     setTimeout(() => {
         let nextZ, nextX;
@@ -164,9 +162,7 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
   }, [arrivedAtHeart]);
 
   const roadPath = useMemo(() => {
-    // START PATH VISUAL FIX: 
-    // Start slightly BEHIND the first level so the road doesn't look like it spawns under feet.
-    // Level 1 is at -1000. Start at -500 to give a lead-in.
+    // Start slightly BEHIND the first level
     const startX = LEVELS_CONFIG[0].coords.x;
     const startZ = LEVELS_CONFIG[0].coords.z + 500;
     
@@ -276,7 +272,7 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
             transformStyle: 'preserve-3d' 
         }}
       >
-        {/* The World Container - FIX: Changed from top-1/2 left-1/2 to inset-0 to center the coordinate system */}
+        {/* The World Container */}
         <div 
             className="absolute inset-0 w-full h-full transition-transform cubic-bezier(0.45, 0, 0.55, 1)"
             style={{ 
@@ -285,14 +281,13 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                 transform: `translateZ(${-cameraZ}px) translateX(${-cameraX}px) translateY(100px)` 
             }}
         >
-            {/* Road - SVG MAPPING FIX */}
-            {/* Removed w-full h-full to prevent scaling issues. Using fixed large size to ensure 1:1 unit mapping */}
+            {/* Road */}
             <div 
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                 style={{
                     width: '4000px',
                     height: '40000px',
-                    transform: 'rotateX(90deg)', // Lay flat
+                    transform: 'rotateX(90deg)', 
                     transformStyle: 'preserve-3d',
                     opacity: arrivedAtHeart ? 0.3 : 1, 
                     transition: 'opacity 1s ease-in-out'
@@ -302,12 +297,7 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                     width="4000" height="40000" 
                     viewBox="-2000 -20000 4000 40000"
                     className="overflow-visible"
-                    style={{
-                         // Explicitly center SVG content in the 4000x40000 container
-                         // The viewBox (-2000 -20000) puts (0,0) exactly in the middle of this div
-                         width: '100%',
-                         height: '100%'
-                    }}
+                    style={{ width: '100%', height: '100%' }}
                 >
                     <defs>
                         <linearGradient id="cosmicBeam" x1="0" y1="0" x2="1" y2="0">
