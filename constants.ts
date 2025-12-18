@@ -1,8 +1,14 @@
+
 import { User, SignupSource } from './types';
 
 // --- CONFIGURATION ---
 
 export const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0FRjmrxvaf6wTOjJQz_xls7CQebd2gyX_eN8nfildNI61mS7fvgSJedlPhfW0OUCq/exec"; 
+
+// 🔴 重要：请将您 "Publish to Web" 生成的 CSV 链接粘贴在引号内
+// 例如: "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=0&single=true&output=csv"
+// 如果留空，App 将不会自动同步，只能手动同步。
+export const LIVE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQPkbtxJwmVhbubHXjud42LhzwktNq8xi9qOyDObcxQ09gR-0hMlj0c7AxAc0B8aEDqftiDFNIr9hvs/pub?gid=0&single=true&output=csv"; 
 
 // 教师管理密码
 export const ADMIN_PASSWORD = "308";
