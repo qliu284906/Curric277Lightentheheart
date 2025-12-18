@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HeartGrid } from './components/HeartGrid';
 import { ParticleBackground } from './components/ParticleBackground';
 import { Confetti } from './components/Confetti';
@@ -122,6 +122,50 @@ const App: React.FC = () => {
       setUsers(updated);
   };
 
+  // 智能合并数据逻辑：根据姓名匹配，防止重复，主要用于从 Google Sheet 同步状态
+  const handleDataMerge = useCallback((importedUsers: User[]) => {
+      setUsers(prevUsers => {
+          const newUsersList = [...prevUsers];
+          let changed = false;
+
+          importedUsers.forEach(importedUser => {
+              const importedNameNorm = importedUser.name.trim().toLowerCase();
+              
+              // 1. 尝试在现有列表中找到匹配的名字
+              const existingIndex = newUsersList.findIndex(
+                  u => u.name.trim().toLowerCase() === importedNameNorm
+              );
+
+              if (existingIndex !== -1) {
+                  // 如果找到了，且当前未点亮，则更新为点亮
+                  if (!newUsersList[existingIndex].isLit) {
+                      newUsersList[existingIndex] = {
+                          ...newUsersList[existingIndex],
+                          isLit: true,
+                          // 如果导入的数据有特定标签（比如 Week X），也可以更新标签，否则保留原样
+                          label: importedUser.label || newUsersList[existingIndex].label
+                      };
+                      changed = true;
+                  }
+              } else {
+                  // 2. 如果没找到，且容量允许，则作为新用户添加
+                  const currentCount = newUsersList.filter(u => u.isLit).length; // 这里只是简单估算，实际添加时一般不限制导入
+                  // 检查是否已经在本次导入中添加过（防止CSV里有重复行）
+                  const alreadyAdded = newUsersList.some(u => u.id === importedUser.id);
+                  
+                  if (!alreadyAdded) {
+                      // 确保 ID 唯一
+                      const safeUser = { ...importedUser, isLit: true, id: `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` };
+                      newUsersList.push(safeUser);
+                      changed = true;
+                  }
+              }
+          });
+
+          return changed ? newUsersList : prevUsers;
+      });
+  }, []);
+
   const handleAdminAuth = () => {
       const pass = window.prompt("Enter Teacher Passcode:");
       if (pass === ADMIN_PASSWORD) {
@@ -152,7 +196,7 @@ const App: React.FC = () => {
           users={users} 
           onToggleUser={toggleUserLit} 
           onClose={() => setIsAdminOpen(false)} 
-          onDataImported={(newUsers) => setUsers(prev => [...prev, ...newUsers])}
+          onDataImported={handleDataMerge}
           onResetData={() => {
               setUsers([...INITIAL_LEGACY_USERS, ...PENDING_STUDENTS]);
               localStorage.removeItem(STORAGE_KEY);

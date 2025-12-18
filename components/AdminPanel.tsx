@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { User } from '../types';
 import { DataImporter } from './DataImporter';
+import { processSheetData } from '../utils/csvParser';
 
 interface AdminPanelProps {
   users: User[];
@@ -10,6 +11,8 @@ interface AdminPanelProps {
   onResetData: () => void;
 }
 
+const SHEET_URL_KEY = 'light-the-heart-sheet-csv-url';
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({ 
   users, 
   onToggleUser, 
@@ -18,12 +21,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onResetData
 }) => {
   const [search, setSearch] = useState('');
+  const [syncUrl, setSyncUrl] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  useEffect(() => {
+      const saved = localStorage.getItem(SHEET_URL_KEY);
+      if (saved) setSyncUrl(saved);
+  }, []);
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
   }, [users, search]);
 
   const litCount = users.filter(u => u.isLit).length;
+
+  const handleSync = async () => {
+      if (!syncUrl) return;
+      setIsSyncing(true);
+      setSyncStatus('idle');
+      localStorage.setItem(SHEET_URL_KEY, syncUrl);
+
+      try {
+          const response = await fetch(syncUrl);
+          if (!response.ok) throw new Error('Network error');
+          const text = await response.text();
+          const importedUsers = processSheetData(text);
+          if (importedUsers.length > 0) {
+              onDataImported(importedUsers);
+              setSyncStatus('success');
+              setTimeout(() => setSyncStatus('idle'), 3000);
+          } else {
+              setSyncStatus('error');
+              alert("No valid data found in CSV. Check headers.");
+          }
+      } catch (e) {
+          console.error(e);
+          setSyncStatus('error');
+      } finally {
+          setIsSyncing(false);
+      }
+  };
 
   return (
     <div className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-md flex justify-end animate-fade-in">
@@ -40,6 +78,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-2">
             <i className="fas fa-times text-xl"></i>
           </button>
+        </div>
+
+        {/* Sync Section (New) */}
+        <div className="p-4 bg-blue-900/20 border-b border-blue-500/20">
+            <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Sync from Google Sheet</h3>
+            <div className="flex gap-2 mb-2">
+                <input 
+                    type="text" 
+                    placeholder="Paste Published CSV Link here..." 
+                    value={syncUrl}
+                    onChange={e => setSyncUrl(e.target.value)}
+                    className="flex-1 bg-black/30 border border-blue-500/30 rounded text-xs px-2 text-white focus:outline-none focus:border-blue-400"
+                />
+                <button 
+                    onClick={handleSync}
+                    disabled={isSyncing || !syncUrl}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                    {isSyncing ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-sync"></i>}
+                    Sync
+                </button>
+            </div>
+            {syncStatus === 'success' && <p className="text-[10px] text-green-400"><i className="fas fa-check"></i> Data synced successfully!</p>}
+            {syncStatus === 'error' && <p className="text-[10px] text-red-400"><i className="fas fa-times"></i> Failed to sync. Check link.</p>}
+            <p className="text-[9px] text-white/30 mt-1">File &gt; Share &gt; Publish to web &gt; CSV</p>
         </div>
 
         {/* Search */}
@@ -91,7 +154,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {/* Tools Section (Batch Import) */}
         <div className="p-6 bg-slate-950/50 border-t border-white/10">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-4">Batch Tools</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-4">Manual Import Tools</p>
             <DataImporter 
               onDataLoaded={onDataImported}
               onReset={() => {
