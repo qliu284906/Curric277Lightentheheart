@@ -53,18 +53,22 @@ export const processSheetData = (csvText: string): User[] => {
   const rows = parseCSV(csvText);
   if (rows.length < 2) return [];
 
+  // Normalize headers to lowercase letters only for easier matching
   const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
   
-  // Find the 'Claimed by' column
-  const claimedByIndex = headers.findIndex(h => h.includes('claimedby'));
+  // 1. Identify critical columns
+  // Priority: "name" -> "studentname" -> "claimedby"
+  let nameIndex = headers.findIndex(h => h === 'name');
+  if (nameIndex === -1) nameIndex = headers.findIndex(h => h.includes('studentname'));
+  if (nameIndex === -1) nameIndex = headers.findIndex(h => h.includes('claimedby'));
   
-  // Optional: Find 'WeekID' or 'Week' to use as label
-  const weekIndex = headers.findIndex(h => h.includes('week') || h === 'id');
+  // 2. Identify optional columns
+  const idIndex = headers.findIndex(h => h === 'id' || h === 'userid');
+  const labelIndex = headers.findIndex(h => h.includes('label') || h.includes('week'));
+  const timestampIndex = headers.findIndex(h => h.includes('time') || h.includes('date'));
 
-  if (claimedByIndex === -1) {
-    console.warn("Could not find 'Claimed by' column. Headers found:", headers);
-    // Fallback: Use the first column if no specific header matches
-    // But better to return empty and let UI warn
+  if (nameIndex === -1) {
+    console.warn("Parser error: Could not find a 'Name' column in CSV headers:", headers);
     return [];
   }
 
@@ -73,19 +77,38 @@ export const processSheetData = (csvText: string): User[] => {
   // Start from row 1 (skip header)
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const name = row[claimedByIndex];
+    // Ensure row has enough columns
+    if (row.length <= nameIndex) continue;
+
+    const name = row[nameIndex];
 
     if (name && name.length > 1) { // Ignore empty or single char junk
-        const weekLabel = weekIndex !== -1 ? row[weekIndex] : `Row ${i}`;
-        // Clean up week label if it's just a number
-        const label = isNaN(Number(weekLabel)) ? weekLabel : `Week ${weekLabel}`;
+        
+        // Try to get ID from CSV, otherwise generate a stable one based on row index
+        let userId = idIndex !== -1 && row[idIndex] ? row[idIndex] : `import-${i}`;
+        
+        // Try to get Label from CSV, otherwise default
+        let userLabel = labelIndex !== -1 && row[labelIndex] ? row[labelIndex] : 'Guest Participant';
+        
+        // Clean up label (legacy "Week X" logic vs plain text)
+        if (!isNaN(Number(userLabel))) {
+            userLabel = `Week ${userLabel}`;
+        }
+
+        // Try to parse timestamp
+        let ts = Date.now();
+        if (timestampIndex !== -1 && row[timestampIndex]) {
+            const parsedTs = Date.parse(row[timestampIndex]);
+            if (!isNaN(parsedTs)) ts = parsedTs;
+        }
 
         users.push({
-            id: `import-${i}`,
+            id: userId,
             name: name,
-            source: SignupSource.LEGACY,
-            timestamp: Date.now(),
-            label: label
+            source: SignupSource.LEGACY, // Marked as legacy/imported
+            timestamp: ts,
+            label: userLabel,
+            isLit: true // Imported data is assumed to be active participants
         });
     }
   }
