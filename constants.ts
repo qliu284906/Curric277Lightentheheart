@@ -1,47 +1,20 @@
-
 import { User, SignupSource } from './types';
 
 // --- CONFIGURATION ---
 
-/**
- * ==========================================
- *  GOOGLE SHEETS BACKEND SETUP INSTRUCTIONS
- * ==========================================
- * 
- * 1. Create a new Google Sheet at https://sheets.new
- * 2. (Optional) In row 1, type headers: "Name" | "Time" | "ID" | "Label"
- * 3. Go to Extensions > Apps Script
- * 4. Paste the following code into Code.gs:
- * 
- *    function doPost(e) {
- *      var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
- *      var data = JSON.parse(e.postData.contents);
- *      // Appends: Name, Server Date, ID, Label (e.g. "Guest" or "Week 12")
- *      sheet.appendRow([data.name, new Date(), data.id, data.label]);
- *      return ContentService.createTextOutput(JSON.stringify({'result': 'success'})).setMimeType(ContentService.MimeType.JSON);
- *    }
- * 
- * 5. Click "Deploy" > "New Deployment"
- * 6. Select type: "Web app"
- * 7. Set "Who has access" to "Anyone" (IMPORTANT!)
- * 8. Click "Deploy" and copy the "Web App URL"
- * 9. Paste the URL below in GOOGLE_APPS_SCRIPT_URL
- */
-
-// PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-// Example: "https://script.google.com/macros/s/AKfycbx.../exec"
 export const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0FRjmrxvaf6wTOjJQz_xls7CQebd2gyX_eN8nfildNI61mS7fvgSJedlPhfW0OUCq/exec"; 
 
-// X represents a pixel, spaces are empty
-// A larger 9x7 heart mask with exactly 38 pixels
+// 教师管理密码
+export const ADMIN_PASSWORD = "308";
+
 export const HEART_MASK = [
-  " XX   XX ", // 4
-  "XXXXXXXXX", // 9
-  "XXXXXXXXX", // 9
-  " XXXXXXX ", // 7
-  "  XXXXX  ", // 5
-  "   XXX   ", // 3
-  "    X    ", // 1
+  " XX   XX ", 
+  "XXXXXXXXX", 
+  "XXXXXXXXX", 
+  " XXXXXXX ", 
+  "  XXXXX  ", 
+  "   XXX   ", 
+  "    X    ", 
 ];
 
 export const TOTAL_CAPACITY = HEART_MASK.reduce((acc, row) => acc + (row.match(/X/g) || []).length, 0);
@@ -59,8 +32,6 @@ export const SEMESTER_THANK_YOU_MESSAGES = [
   "We really appreciate your cooperation and the hard work you invested this semester."
 ];
 
-// 2. Pending Users (Unlit / From your CSV table)
-// 19 Students
 export const PENDING_STUDENTS: User[] = [
   { id: 'pen-1', name: 'Asa Wold', source: SignupSource.PENDING, timestamp: Date.now(), label: 'Presenter', isLit: false },
   { id: 'pen-2', name: 'Raymond Lu', source: SignupSource.PENDING, timestamp: Date.now(), label: 'Presenter', isLit: false },
@@ -83,8 +54,6 @@ export const PENDING_STUDENTS: User[] = [
   { id: 'pen-19', name: 'Evelyn PAN', source: SignupSource.PENDING, timestamp: Date.now(), label: 'Presenter', isLit: false },
 ];
 
-// 1. Existing Users (Already Lit)
-// Total Capacity is 38. Pending is 19. Available slots = 19.
 export const INITIAL_LEGACY_USERS: User[] = [
   { id: 'leg-3', name: 'Amy', source: SignupSource.LEGACY, timestamp: Date.now(), label: 'Week 3', isLit: true },
   { id: 'leg-4', name: 'Haoran Wang', source: SignupSource.LEGACY, timestamp: Date.now(), label: 'Week 3', isLit: true },

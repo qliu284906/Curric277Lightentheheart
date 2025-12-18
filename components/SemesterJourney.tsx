@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 interface SemesterJourneyProps {
-  onComplete: (name?: string) => void;
+  onComplete: (name?: string) => Promise<{success: boolean, message?: string}>;
 }
 
 // --- Custom Pixel Icons ---
@@ -35,7 +35,6 @@ const PixelIconMask = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// 14 Week Configuration
 const LEVELS_CONFIG = [
   { id: 1,  title: "Introduction",      weeks: "Week 1",  coords: {x: -600, z: -1000},  icon: 0, color: "text-blue-400",    border: "border-blue-400",    bg: "from-blue-500/20 to-blue-900/40" },
   { id: 2,  title: "Representation",    weeks: "Week 2",  coords: {x: -300, z: -2200},  icon: 1, color: "text-indigo-400",  border: "border-indigo-400",  bg: "from-indigo-500/20 to-indigo-900/40" },
@@ -55,71 +54,49 @@ const LEVELS_CONFIG = [
 
 const ICONS = [PixelIconBasics, PixelIconPen, PixelIconFlow, PixelIconMask];
 const HEART_POS = { x: 1000, z: -18500 };
-
-// Intro Text Content
 const INTRO_TEXT = "From Representation and Agency to Flow and Identity... We explored Gee's Principles, Empathy, and Cognition to understand the true power of play. Let's revisit the path we walked together.";
 
 export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) => {
-  // Game Phases: 'TITLE' -> 'INTRO_TYPEWRITER' -> 'JOURNEY'
   const [phase, setPhase] = useState<'TITLE' | 'INTRO_TYPEWRITER' | 'JOURNEY'>('TITLE');
-  
-  // Journey State
   const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
   const [cameraZ, setCameraZ] = useState(0);
   const [cameraX, setCameraX] = useState(0);
   const [isTravelling, setIsTravelling] = useState(false);
-  
-  // Typewriter State
   const [typedText, setTypedText] = useState('');
-  
-  // Final Input State
   const [arrivedAtHeart, setArrivedAtHeart] = useState(false);
   const [inputName, setInputName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initial mount: Set initial camera
   useEffect(() => {
-    // Start exactly at week 1 Z, slightly pulled back
     setCameraZ(LEVELS_CONFIG[0].coords.z + 800);
     setCameraX(LEVELS_CONFIG[0].coords.x);
   }, []);
 
-  // Typewriter Effect Logic
   useEffect(() => {
     if (phase === 'INTRO_TYPEWRITER') {
       let i = 0;
-      const speed = 40; // typing speed ms
       const interval = setInterval(() => {
         if (i < INTRO_TEXT.length) {
           setTypedText(INTRO_TEXT.substring(0, i + 1));
           i++;
         } else {
           clearInterval(interval);
-          // Wait a bit after typing finishes, then go to journey
-          setTimeout(() => {
-             setPhase('JOURNEY');
-          }, 2000);
+          setTimeout(() => setPhase('JOURNEY'), 2000);
         }
-      }, speed);
+      }, 40);
       return () => clearInterval(interval);
     }
   }, [phase]);
 
-  const handleStartAdventure = () => {
-    setPhase('INTRO_TYPEWRITER');
-  };
-
-  const handleCollect = (levelIndex: number) => {
-    if (levelIndex !== currentLevelIdx || isTravelling) return;
-
+  const handleCollect = (index: number) => {
+    if (index !== currentLevelIdx || isTravelling) return;
     setIsTravelling(true);
-    // Removed unused setCollected call
-
+    
     setTimeout(() => {
         let nextZ, nextX;
         let isFinalLeg = false;
-
         if (currentLevelIdx < LEVELS_CONFIG.length - 1) {
             nextZ = LEVELS_CONFIG[currentLevelIdx + 1].coords.z + 800; 
             nextX = LEVELS_CONFIG[currentLevelIdx + 1].coords.x;
@@ -128,10 +105,8 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
             nextX = HEART_POS.x;
             isFinalLeg = true;
         }
-
         setCameraZ(nextZ);
         setCameraX(nextX);
-
         setTimeout(() => {
             setIsTravelling(false);
             if (!isFinalLeg) {
@@ -140,139 +115,95 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                 setArrivedAtHeart(true);
             }
         }, 1500); 
-    }, 500);
+    }, 100);
   };
 
-  const handleFinalSubmit = (e: React.FormEvent) => {
+  const handleFinalSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if(inputName.trim() && !isSubmitting) {
           setIsSubmitting(true);
-          onComplete(inputName);
+          setErrorMsg('');
+          const result = await onComplete(inputName);
+          if (!result.success) {
+              setErrorMsg(result.message || "Something went wrong.");
+              setIsSubmitting(false);
+          }
       }
   };
   
-  // Focus input when arriving at heart
   useEffect(() => {
       if (arrivedAtHeart && inputRef.current) {
-          // Small timeout to ensure visibility transition is done
-          setTimeout(() => {
-              inputRef.current?.focus();
-          }, 500);
+          setTimeout(() => inputRef.current?.focus(), 500);
       }
   }, [arrivedAtHeart]);
 
   const roadPath = useMemo(() => {
-    // Start slightly BEHIND the first level
     const startX = LEVELS_CONFIG[0].coords.x;
     const startZ = LEVELS_CONFIG[0].coords.z + 500;
-    
-    let d = `M ${startX} ${startZ}`;
-    d += ` L ${LEVELS_CONFIG[0].coords.x} ${LEVELS_CONFIG[0].coords.z}`; // Connect to node 1
-    
+    let d = `M ${startX} ${startZ} L ${LEVELS_CONFIG[0].coords.x} ${LEVELS_CONFIG[0].coords.z}`;
     for (let i = 0; i < LEVELS_CONFIG.length - 1; i++) {
-        const next = LEVELS_CONFIG[i+1];
-        d += ` L ${next.coords.x} ${next.coords.z}`;
+        d += ` L ${LEVELS_CONFIG[i+1].coords.x} ${LEVELS_CONFIG[i+1].coords.z}`;
     }
     d += ` L ${HEART_POS.x} ${HEART_POS.z}`;
     return d;
   }, []);
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-black/90 z-40 flex items-center justify-center overflow-hidden font-rubik">
-      
-      {/* --- PHASE 1: TITLE SCREEN --- */}
-      {phase === 'TITLE' && (
-        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black text-center p-6 animate-fade-in">
-           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-black to-black"></div>
-           
-           <div className="relative z-10 max-w-2xl">
-               <div className="mb-4 inline-block px-3 py-1 border border-blue-500/30 rounded-full bg-blue-900/20 text-blue-300 text-xs font-mono tracking-[0.2em] uppercase">
-                  Class Data Loaded
-               </div>
-               
-               <h1 className="text-4xl md:text-7xl font-bold text-white mb-2 tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">
-                  CURRIC 277
-               </h1>
-               
-               <h2 className="text-xl md:text-3xl text-blue-200/80 font-light mb-8 tracking-wide">
-                  Video Games and Learning
-               </h2>
-               
-               <p className="text-slate-400 mb-12 max-w-lg mx-auto leading-relaxed text-sm md:text-base">
-                  The semester is complete. The logs are finalized. 
-                  Revisit the journey through Representation, Identity, and Cognition 
-                  to unlock the final community artifact.
-               </p>
-               
-               <button 
-                  onClick={handleStartAdventure}
-                  className="group relative px-8 py-4 bg-transparent overflow-hidden rounded-sm transition-all hover:scale-105"
-               >
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-600 to-indigo-600 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="absolute inset-0 w-full h-full border border-white/20"></div>
-                  <span className="relative z-10 font-bold text-white tracking-widest flex items-center gap-3">
-                     START ADVENTURE
-                     <i className="fas fa-rocket group-hover:translate-x-1 transition-transform"></i>
-                  </span>
-               </button>
-           </div>
-        </div>
-      )}
-
-      {/* --- PHASE 2: TYPEWRITER INTRO --- */}
-      {phase === 'INTRO_TYPEWRITER' && (
-        <div className="absolute inset-0 z-[70] bg-black flex items-center justify-center p-8">
-            <div className="max-w-3xl text-left">
-                <p className="text-2xl md:text-4xl leading-relaxed text-blue-100 font-mono">
-                    <span className="text-blue-400 mr-2">&gt;</span>
-                    {typedText}
-                    <span className="inline-block w-3 h-8 ml-1 align-middle bg-blue-500 animate-pulse"></span>
-                </p>
-                <div className="mt-12 flex justify-end">
-                    <button 
-                        onClick={() => setPhase('JOURNEY')}
-                        className="text-white/30 hover:text-white text-sm uppercase tracking-widest transition-colors animate-pulse"
-                    >
-                        Skip &gt;&gt;
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* --- PHASE 3: JOURNEY (HUD & 3D) --- */}
+    <div className="fixed inset-0 w-full h-full bg-black/90 z-40 flex items-center justify-center overflow-hidden font-rubik pointer-events-none">
       
       {/* HUD: Top Bar */}
       <div className={`absolute top-0 left-0 w-full p-6 z-50 flex justify-between items-start pointer-events-none transition-opacity duration-1000 ${phase === 'JOURNEY' && !arrivedAtHeart ? 'opacity-100' : 'opacity-0'}`}>
          <div>
-            <h2 className="text-xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-               SEMESTER LOG
-            </h2>
+            <h2 className="text-xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] uppercase">Semester Log</h2>
             <div className="flex items-center gap-2 mt-2">
                 <div className={`w-2 h-2 rounded-full ${isTravelling ? 'bg-green-400 animate-ping' : 'bg-blue-500'}`}></div>
-                <span className="text-xs font-mono text-blue-200/60 uppercase tracking-widest">
-                    {isTravelling ? 'WARP ENGAGED' : 'SYSTEM READY'}
-                </span>
+                <span className="text-xs font-mono text-blue-200/60 uppercase tracking-widest">{isTravelling ? 'WARP ENGAGED' : 'SYSTEM READY'}</span>
             </div>
          </div>
-         
          <div className="flex flex-col items-end gap-1">
-            <span className="text-[10px] text-blue-400/50 font-mono tracking-widest">DESTINATION DISTANCE</span>
+            <span className="text-[10px] text-blue-400/50 font-mono tracking-widest uppercase">Target Vector</span>
             <span className="text-2xl font-mono text-white/90">
                 {Math.max(0, Math.floor((Math.abs(HEART_POS.z) - Math.abs(cameraZ))/10))} <span className="text-sm text-white/30">LY</span>
             </span>
          </div>
       </div>
 
+      {phase === 'TITLE' && (
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black text-center p-6 animate-fade-in pointer-events-auto">
+           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-black to-black pointer-events-none"></div>
+           <div className="relative z-10 max-w-2xl">
+               <div className="mb-4 inline-block px-3 py-1 border border-blue-500/30 rounded-full bg-blue-900/20 text-blue-300 text-xs font-mono tracking-[0.2em] uppercase">Class Data Loaded</div>
+               <h1 className="text-4xl md:text-7xl font-bold text-white mb-2 tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] text-shadow-lg">CURRIC 277</h1>
+               <h2 className="text-xl md:text-3xl text-blue-200/80 font-light mb-8 tracking-wide">Video Games and Learning</h2>
+               <p className="text-slate-400 mb-12 max-w-lg mx-auto text-sm md:text-base leading-relaxed">The semester is complete. Revisit the journey through Representation, Identity, and Cognition to unlock the final community artifact.</p>
+               <button onClick={() => setPhase('INTRO_TYPEWRITER')} className="group relative px-8 py-4 bg-transparent rounded-sm transition-all hover:scale-105 cursor-pointer overflow-hidden">
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-600 to-indigo-600 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="absolute inset-0 border border-white/20"></div>
+                  <span className="relative z-10 font-bold text-white tracking-widest flex items-center gap-3 uppercase">START ADVENTURE <i className="fas fa-rocket group-hover:translate-x-1 transition-transform"></i></span>
+               </button>
+           </div>
+        </div>
+      )}
+
+      {phase === 'INTRO_TYPEWRITER' && (
+        <div className="absolute inset-0 z-[70] bg-black flex items-center justify-center p-8 pointer-events-auto">
+            <div className="max-w-3xl text-left">
+                <p className="text-2xl md:text-4xl leading-relaxed text-blue-100 font-mono">
+                    <span className="text-blue-400 mr-2">&gt;</span>{typedText}
+                    <span className="inline-block w-3 h-8 ml-1 align-middle bg-blue-500 animate-pulse"></span>
+                </p>
+                <div className="mt-12 flex justify-end">
+                    <button onClick={() => setPhase('JOURNEY')} className="text-white/30 hover:text-white text-sm uppercase tracking-widest cursor-pointer transition-colors">Skip &gt;&gt;</button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* 3D Viewport */}
       <div 
-        className={`w-full h-full relative perspective-container transition-opacity duration-1000 ${phase === 'JOURNEY' ? 'opacity-100' : 'opacity-0'}`}
-        style={{ 
-            perspective: '1000px', 
-            transformStyle: 'preserve-3d' 
-        }}
+        className={`w-full h-full relative transition-opacity duration-1000 ${phase === 'JOURNEY' ? 'opacity-100' : 'opacity-0'} pointer-events-none`}
+        style={{ perspective: '1000px', transformStyle: 'preserve-3d' }}
       >
-        {/* The World Container */}
         <div 
             className="absolute inset-0 w-full h-full transition-transform cubic-bezier(0.45, 0, 0.55, 1)"
             style={{ 
@@ -281,110 +212,58 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                 transform: `translateZ(${-cameraZ}px) translateX(${-cameraX}px) translateY(100px)` 
             }}
         >
-            {/* Road */}
-            <div 
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                style={{
-                    width: '4000px',
-                    height: '40000px',
-                    transform: 'rotateX(90deg)', 
-                    transformStyle: 'preserve-3d',
-                    opacity: arrivedAtHeart ? 0.3 : 1, 
-                    transition: 'opacity 1s ease-in-out'
-                }}
-            >
-                <svg 
-                    width="4000" height="40000" 
-                    viewBox="-2000 -20000 4000 40000"
-                    className="overflow-visible"
-                    style={{ width: '100%', height: '100%' }}
-                >
-                    <defs>
-                        <linearGradient id="cosmicBeam" x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stopColor="rgba(59, 130, 246, 0)" />
-                            <stop offset="50%" stopColor="rgba(168, 85, 247, 0.6)" />
-                            <stop offset="100%" stopColor="rgba(59, 130, 246, 0)" />
-                        </linearGradient>
-                        <filter id="glow-strong">
-                            <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
-                            <feMerge>
-                                <feMergeNode in="coloredBlur"/>
-                                <feMergeNode in="SourceGraphic"/>
-                            </feMerge>
-                        </filter>
-                    </defs>
-                    <path d={roadPath} stroke="url(#cosmicBeam)" strokeWidth="120" fill="none" strokeLinecap="round" strokeLinejoin="round" filter="blur(20px)" className="opacity-70" />
-                    <path d={roadPath} stroke="rgba(255, 255, 255, 0.4)" strokeWidth="2" fill="none" strokeDasharray="10 30" strokeLinecap="round" filter="url(#glow-strong)" />
+            {/* Road SVG */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: '4000px', height: '40000px', transform: 'rotateX(90deg)', transformStyle: 'preserve-3d' }}>
+                <svg width="4000" height="40000" viewBox="-2000 -20000 4000 40000" className="overflow-visible" style={{ width: '100%', height: '100%' }}>
+                    <path d={roadPath} stroke="rgba(168, 85, 247, 0.4)" strokeWidth="120" fill="none" filter="blur(20px)" />
+                    <path d={roadPath} stroke="rgba(255, 255, 255, 0.4)" strokeWidth="2" fill="none" strokeDasharray="10 30" />
                 </svg>
             </div>
 
-            {/* Levels */}
+            {/* Level Nodes */}
             {LEVELS_CONFIG.map((level, index) => {
                 const isCurrent = index === currentLevelIdx;
                 const isPassed = index < currentLevelIdx;
                 const Icon = ICONS[level.icon];
-                
                 return (
                     <div 
                         key={level.id}
-                        className={`absolute top-1/2 left-1/2 flex flex-col items-center justify-center transition-all duration-1000 ${isCurrent ? 'z-50' : 'z-auto'}`}
+                        className="absolute top-1/2 left-1/2 flex flex-col items-center justify-center transition-all duration-1000"
                         style={{
                             transformStyle: 'preserve-3d',
-                            transform: `
-                                translate3d(${level.coords.x}px, 0, ${level.coords.z}px) 
-                                rotateY(${isPassed ? (index % 2 === 0 ? -15 : 15) : 0}deg)
-                            `,
-                            opacity: isPassed ? 0.3 : (arrivedAtHeart && isCurrent ? 0 : 1), 
-                            filter: isPassed ? 'grayscale(0.8) blur(1px)' : 'none',
+                            transform: `translate3d(${level.coords.x}px, 0, ${level.coords.z}px)`,
+                            opacity: isPassed ? 0.3 : 1,
                         }}
                     >
-                        <div 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleCollect(index);
-                            }}
-                            className={`
-                                relative group w-64 h-64 flex flex-col items-center justify-center
-                                transition-all duration-500
-                                ${isCurrent && !isTravelling ? 'cursor-pointer pointer-events-auto' : 'pointer-events-none'}
-                            `}
-                        >
+                        <div className={`relative group w-64 h-64 flex flex-col items-center justify-center ${isCurrent && !isTravelling ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                             <div className={`mb-8 text-center transition-all duration-700 ${isCurrent ? 'scale-125 opacity-100 -translate-y-8' : 'scale-75 opacity-60'}`}>
-                                <h3 className={`font-bold ${level.color} drop-shadow-[0_0_15px_rgba(0,0,0,0.8)] whitespace-nowrap transition-all duration-500 ${isCurrent ? 'text-6xl md:text-7xl animate-pulse-slow' : 'text-3xl'}`}>
-                                    {level.title}
-                                </h3>
-                                {isCurrent && (
-                                    <p className="text-sm text-white/80 font-mono tracking-[0.3em] uppercase mt-2 bg-black/40 inline-block px-3 py-1 rounded border border-white/10">
-                                        Current Sector: {level.weeks}
-                                    </p>
-                                )}
+                                <h3 className={`font-bold ${level.color} drop-shadow-[0_0_15px_rgba(0,0,0,0.8)] text-4xl sm:text-6xl whitespace-nowrap`}>{level.title}</h3>
                             </div>
 
-                            <div className={`
-                                relative w-32 h-32 rounded-full flex items-center justify-center
-                                border border-white/20 backdrop-blur-md shadow-2xl
-                                bg-gradient-to-br ${level.bg}
-                                ${isCurrent ? 'animate-float shadow-[0_0_80px_currentColor]' : ''}
-                                ${level.color}
-                                transition-all duration-500 hover:scale-105
-                            `}>
-                                <Icon className="w-16 h-16 drop-shadow-lg" />
+                            <div 
+                                onClick={() => handleCollect(index)}
+                                className={`
+                                    relative w-32 h-32 rounded-full flex items-center justify-center border border-white/20 backdrop-blur-md 
+                                    bg-gradient-to-br ${level.bg} ${level.color}
+                                    ${isCurrent ? 'animate-float cursor-pointer hover:scale-110 active:scale-95 shadow-[0_0_50px_currentColor]' : ''} 
+                                    transition-all duration-500
+                                `}
+                            >
+                                <Icon className="w-16 h-16 drop-shadow-xl" />
                                 {isCurrent && (
                                     <>
-                                        <div className="absolute inset-0 -m-6 border border-white/20 rounded-full animate-spin-slow"></div>
-                                        <div className="absolute inset-0 -m-2 border-2 border-white/40 rounded-full animate-ping opacity-20"></div>
+                                        <div className="absolute inset-0 -m-4 border border-white/20 rounded-full animate-spin-slow pointer-events-none"></div>
+                                        <div className="absolute inset-0 -m-1 border border-white/40 rounded-full animate-ping opacity-20 pointer-events-none"></div>
                                     </>
                                 )}
                             </div>
-                            
+
                             {isCurrent && !isTravelling && (
-                                <button className="absolute -bottom-24 animate-bounce flex flex-col items-center group-hover:scale-110 transition-transform pointer-events-auto">
-                                    <div className="bg-white/10 hover:bg-white/20 border border-white/40 backdrop-blur-md px-8 py-3 rounded-full transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-                                        <span className="text-white font-bold tracking-widest text-base uppercase flex items-center gap-2">
-                                            Warp to Next <i className="fas fa-forward"></i>
-                                        </span>
-                                    </div>
-                                    <div className="h-8 w-0.5 bg-white/30 mt-2"></div>
+                                <button 
+                                  onClick={() => handleCollect(index)}
+                                  className="absolute -bottom-24 bg-white/10 hover:bg-white/20 border border-white/40 backdrop-blur-md px-8 py-3 rounded-full text-white font-bold tracking-[0.3em] uppercase cursor-pointer animate-bounce z-50 pointer-events-auto transition-all hover:scale-105"
+                                >
+                                    WARP TO NEXT <i className="fas fa-forward ml-2"></i>
                                 </button>
                             )}
                         </div>
@@ -392,22 +271,34 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                 );
             })}
 
-            {/* THE HEART (Visual Only in 3D) */}
+            {/* THE HEART (Visual Only in 3D Space) */}
             <div 
                 className="absolute top-1/2 left-1/2 flex flex-col items-center justify-center pointer-events-none"
                 style={{
-                    transform: `translate3d(${HEART_POS.x}px, -100px, ${HEART_POS.z}px)`,
+                    transformStyle: 'preserve-3d',
+                    transform: `translate3d(${HEART_POS.x}px, -150px, ${HEART_POS.z}px)`,
                 }}
             >
-                <div className={`transition-all duration-1000 ${arrivedAtHeart ? 'scale-[2] opacity-20 blur-xl' : 'scale-100 opacity-100'}`}>
+                <div className={`transition-all duration-1000 ${arrivedAtHeart ? 'scale-[3] opacity-0 blur-3xl' : 'scale-100 opacity-100'}`}>
                     <div className="relative group">
+                        {/* Glow Aura */}
                         <div className="absolute inset-0 bg-pink-500/30 blur-[120px] rounded-full animate-pulse-slow"></div>
-                        <div className="w-96 h-96 text-pink-500 animate-float drop-shadow-[0_0_80px_rgba(236,72,153,0.8)]">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M4 4h16v16H4z" fillOpacity="0"/> 
-                                <path d="M7 5h2v2H7zm2 2h2v2H9zm4 0h2v2h-2zm2-2h2v2h-2zM5 9h2v2H5zm0 2h2v2H5zm0 2h2v2H5zm2 2h2v2H7zm2 2h2v2H9zm2 2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2z" />
-                            </svg>
+                        
+                        {/* 3D Floating Heart Icon */}
+                        <div className="w-96 h-96 text-pink-500 animate-float drop-shadow-[0_0_80px_rgba(236,72,153,0.8)]" style={{ transformStyle: 'preserve-3d' }}>
+                             <svg viewBox="0 0 24 24" fill="currentColor" shapeRendering="crispEdges">
+                                <path d="M7 5h2v2H7zm2 2h2v2H9zm4 0h2v2h-2zm2-2h2v2h-2zM5 9h2v2H5zm0 2h2v2H5zm0 2h2v2H5zm2 2h2v2H7zm2 2h2v2H9zm2 2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2z" />
+                                <path d="M19 9h2v2h-2zm0 2h2v2h-2zm0 2h2v2h-2z" />
+                             </svg>
                         </div>
+                        
+                        {!arrivedAtHeart && (
+                            <div className="absolute top-full mt-10 w-full text-center">
+                                <div className="inline-block px-8 py-2 bg-pink-500/10 border border-pink-500/30 backdrop-blur-md rounded-full shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                                    <span className="text-pink-300 font-bold tracking-[0.5em] uppercase text-sm">CLASS HEART</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -422,7 +313,7 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
                             style={{
                                 width: '2px',
                                 height: '800px',
-                                opacity: Math.random() * 0.5,
+                                opacity: Math.random() * 0.4,
                                 transform: `
                                     rotate(${Math.random() * 360}deg) 
                                     translateY(${Math.random() * 600 + 200}px)
@@ -437,48 +328,27 @@ export const SemesterJourney: React.FC<SemesterJourneyProps> = ({ onComplete }) 
         </div>
       </div>
 
-      {/* --- PHASE 4: FINAL FORM (2D OVERLAY) --- */}
-      {/* This renders ON TOP of the 3D scene, not inside it, guaranteeing clickability */}
+      {/* Final Input Form (2D Overlay) */}
       {arrivedAtHeart && (
-         <div className="absolute inset-0 z-[100] flex items-center justify-center">
+         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md pointer-events-auto animate-fade-in">
             <div className="w-full max-w-md px-4">
-                <form 
-                   onSubmit={handleFinalSubmit} 
-                   className="bg-slate-900/80 backdrop-blur-xl border border-pink-500/50 p-8 rounded-3xl shadow-[0_0_100px_rgba(236,72,153,0.5)] text-center animate-pop-in"
-                >
+                <form onSubmit={handleFinalSubmit} className="bg-slate-900 border border-pink-500/50 p-8 rounded-3xl shadow-[0_0_100px_rgba(236,72,153,0.3)] text-center animate-pop-in">
                    <i className="fas fa-heart text-5xl text-pink-500 mb-6 animate-pulse"></i>
-                   {/* UPDATED: Simple, Direct Text */}
-                   <h2 className="text-2xl font-bold text-white mb-2">Light Up The Heart</h2>
-                   <p className="text-pink-200/70 text-sm mb-6">Please enter your name to complete the journey.</p>
-                   
+                   <h2 className="text-2xl font-bold text-white mb-2">Final Destination</h2>
+                   <p className="text-pink-200/70 text-sm mb-6">Enter your name to light the community heart.</p>
                    <input 
-                     ref={inputRef}
-                     type="text"
-                     value={inputName}
-                     onChange={(e) => setInputName(e.target.value)}
-                     disabled={isSubmitting}
-                     placeholder="Your Name..."
-                     className="w-full bg-black/60 border border-pink-500/30 rounded-xl px-4 py-4 text-white text-xl font-bold placeholder-pink-200/20 focus:outline-none focus:border-pink-400 focus:shadow-[0_0_20px_rgba(244,114,182,0.4)] transition-all mb-6 text-center disabled:opacity-50"
+                     ref={inputRef} type="text" value={inputName} onChange={(e) => { setInputName(e.target.value); setErrorMsg(''); }}
+                     disabled={isSubmitting} placeholder="Your Name..."
+                     className={`w-full bg-black/60 border ${errorMsg ? 'border-red-500' : 'border-pink-500/30'} rounded-xl px-4 py-4 text-white text-xl font-bold text-center mb-2 outline-none focus:border-pink-400 transition-all`}
                    />
-                   
-                   <button 
-                     type="submit"
-                     disabled={!inputName.trim() || isSubmitting}
-                     className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest flex justify-center items-center gap-2 text-lg"
-                   >
-                     {isSubmitting ? (
-                        <>
-                            <i className="fas fa-circle-notch animate-spin"></i> Processing...
-                        </>
-                     ) : (
-                         'Light Up'
-                     )}
+                   {errorMsg && <p className="text-red-400 text-[10px] mb-4 uppercase font-bold tracking-widest">{errorMsg}</p>}
+                   <button type="submit" disabled={!inputName.trim() || isSubmitting} className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl cursor-pointer transition-all transform active:scale-95 shadow-lg tracking-widest uppercase">
+                     {isSubmitting ? 'Processing...' : 'LIGHT UP THE HEART'}
                    </button>
                 </form>
             </div>
          </div>
       )}
-
     </div>
   );
 };
