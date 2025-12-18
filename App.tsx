@@ -248,7 +248,7 @@ const App: React.FC = () => {
             className="text-3xl md:text-5xl font-bold mb-2 tracking-tight cursor-default select-none hover:text-blue-200 transition-colors"
             title="Double click for admin"
           >
-            Lightening the <span className="gradient-text">Heart</span>
+            Light Up the <span className="gradient-text">Heart</span>
           </h1>
           <p className="text-blue-200/50 text-sm mb-10 tracking-wide uppercase">Classroom Ritual</p>
 
